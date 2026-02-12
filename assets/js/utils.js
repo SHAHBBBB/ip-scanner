@@ -22,6 +22,8 @@ const translations = {
     "about": "Über",
     "ip": "IP",
     'latency': 'Latenz',
+    "speed-test": "Speedtest",
+    "speed-test-title": "Geschwindigkeitstest für diese IP durchführen",
     "footer-text": "© bei DrunkLeen",
   },
 
@@ -48,6 +50,8 @@ const translations = {
     "about": "About",
     "ip": "IP",
     'latency': 'Latency',
+    "speed-test": "Speed Test",
+    "speed-test-title": "Run speed test for this IP",
     "footer-text": "© By DrunkLeen",
   },
 
@@ -74,6 +78,8 @@ const translations = {
     "about": "درباره",
     "ip": "IP",
     'latency': 'تاخیر',
+    "speed-test": "تست سرعت",
+    "speed-test-title": "اجرای تست سرعت برای این IP",
     "footer-text": "© توسط DrunkLeen",
   },
 
@@ -100,6 +106,8 @@ const translations = {
     "about": "À propos de",
     "ip": "IP",
     'latency': 'Latence',
+    "speed-test": "Test de vitesse",
+    "speed-test-title": "Exécuter le test de vitesse pour cette IP",
     "footer-text": "© Par DrunkLeen",
   },
 
@@ -126,6 +134,8 @@ const translations = {
     "about": "О нас",
     "ip": "IP",
     'latency': 'Задержка',
+    "speed-test": "Тест скорости",
+    "speed-test-title": "Запустить тест скорости для этого IP",
     "footer-text": "© От DrunkLeen",
   },
 
@@ -152,6 +162,8 @@ const translations = {
     "about": "Acerca de",
     "ip": "IP",
     'latency': 'Latencia',
+    "speed-test": "Prueba de velocidad",
+    "speed-test-title": "Ejecutar prueba de velocidad para esta IP",
     "footer-text": "© Por DrunkLeen",
   },
 
@@ -178,6 +190,8 @@ const translations = {
     "about": "Hakkında",
     "ip": "IP",
     'latency': 'Gecikme',
+    "speed-test": "Hız Testi",
+    "speed-test-title": "Bu IP için hız testi çalıştır",
     "footer-text": "© DrunkLeen tarafından",
   },
 
@@ -205,6 +219,8 @@ const translations = {
     "about": "关于",
     "ip": "IP",
     'latency': '延迟',
+    "speed-test": "速度测试",
+    "speed-test-title": "对此IP运行速度测试",
     "footer-text": "© 由DrunkLeen",
   },
 
@@ -216,7 +232,12 @@ function changeLanguage(lang = 'en') {
   elements.forEach(element => {
     const key = element.getAttribute('data-translate');
     if (translations[lang] && translations[lang][key]) {
-      element.textContent = translations[lang][key];
+      // For elements with title attributes (like buttons with tooltips), update title
+      if (element.hasAttribute('title')) {
+        element.title = translations[lang][key];
+      } else {
+        element.textContent = translations[lang][key];
+      }
     }
   });
 
