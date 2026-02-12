@@ -344,78 +344,88 @@ async function runSpeedTest(ip) {
   const resultDiv = document.getElementById(speedTestId);
   const btnId = `btn-${speedTestId}`;
   const btn = document.getElementById(btnId);
-  
+
   if (activeSpeedTests.has(ip)) {
     return;
   }
-  
+
   activeSpeedTests.set(ip, true);
   btn.disabled = true;
   btn.innerHTML = '⏳';
   resultDiv.innerHTML = '<small class="text-info">Testing...</small>';
-  
+
   try {
-    const testDurationMs = 5000;
-    const chunkSize = 1024 * 100;
+    const testDurationMs = 20000;
     let totalBytes = 0;
     const startTime = performance.now();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), testDurationMs + 2000);
-    
+    const timeoutId = setTimeout(() => controller.abort(), testDurationMs + 5000);
+
     const url = `https://${ip}:2096/__down`;
-    
+
     try {
       const response = await fetch(url, {
         signal: controller.signal,
         method: 'GET',
+        cache: 'no-store',
+        credentials: 'omit',
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to connect');
+
+      if (!response.body) {
+        throw new Error('No response body available');
       }
-      
+
       const reader = response.body.getReader();
-      
+
       while (true) {
         const elapsed = performance.now() - startTime;
         if (elapsed >= testDurationMs) {
           reader.cancel();
           break;
         }
-        
+
         const { done, value } = await reader.read();
-        
+
         if (done) {
           break;
         }
-        
+
         totalBytes += value.length;
-        
+
         const currentSpeed = (totalBytes / (elapsed / 1000)) / (1024 * 1024);
         resultDiv.innerHTML = `<small class="text-info">${currentSpeed.toFixed(2)} MB/s</small>`;
       }
-      
+
       clearTimeout(timeoutId);
-      
+
       const endTime = performance.now();
       const durationSeconds = (endTime - startTime) / 1000;
       const speedMbps = (totalBytes / durationSeconds) / (1024 * 1024);
-      
+
       if (totalBytes > 0) {
         resultDiv.innerHTML = `<small class="text-success"><strong>${speedMbps.toFixed(2)} MB/s</strong></small>`;
       } else {
         resultDiv.innerHTML = '<small class="text-warning">No data</small>';
       }
-      
+
     } catch (error) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
+
+      const endTime = performance.now();
+      const durationSeconds = (endTime - startTime) / 1000;
+      const speedMbps = (totalBytes / durationSeconds) / (1024 * 1024);
+
+      if (totalBytes > 0) {
+        resultDiv.innerHTML = `<small class="text-success"><strong>${speedMbps.toFixed(2)} MB/s</strong></small>`;
+      } else if (error.name === 'AbortError') {
         resultDiv.innerHTML = '<small class="text-warning">Timeout</small>';
+      } else if (error.message === 'No response body available') {
+        resultDiv.innerHTML = '<small class="text-danger">No data stream</small>';
       } else {
         resultDiv.innerHTML = '<small class="text-danger">Failed</small>';
       }
     }
-    
+
   } catch (error) {
     resultDiv.innerHTML = '<small class="text-danger">Error</small>';
   } finally {
