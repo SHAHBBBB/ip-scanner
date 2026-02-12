@@ -380,7 +380,8 @@ async function runSpeedTest(ip) {
       while (true) {
         const elapsed = performance.now() - startTime;
         if (elapsed >= testDurationMs) {
-          reader.cancel();
+          await reader.cancel();
+          controller.abort();
           break;
         }
 
