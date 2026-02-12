@@ -23,9 +23,15 @@ This web application is designed to scan and test the latency of IP addresses. I
 ### Localization
 - Basic support for localization with the `language` variable.
 
+### Speed Testing
+- Per-IP network speed test button to measure download bandwidth for each discovered Cloudflare IP.
+- Real-time speed measurements displayed inline for each IP address.
+- Tests download speed over 5 seconds using the same endpoint as latency tests.
+
 ## Usage
 1. Load the application in a web browser.
 2. Adjust scanning parameters (maximum IP count, maximum latency, regular expressions, etc.).
 3. Start the scanning process.
 4. Monitor the dynamic presentation of results.
-5. Copy individual IPs or download the entire list for further use.
+5. Click the speed test button (⚡) next to any IP to measure its download speed.
+6. Copy individual IPs or download the entire list for further use.

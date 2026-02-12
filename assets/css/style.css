@@ -192,3 +192,14 @@ footer p {
     height: 70px;
   }
 }
+
+.speed-test-result {
+  font-size: 12px;
+  min-height: 18px;
+  white-space: nowrap;
+}
+
+.speed-test-result small {
+  display: block;
+  line-height: 1.2;
+}
