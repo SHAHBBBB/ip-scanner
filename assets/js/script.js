@@ -121,7 +121,7 @@ async function testIPs(ipList) {
     }
     testNo++;
     var testResult = 0;
-    const url = `https://${ip}:2096/__down`;
+    const url = `https://${ip}/__down`;
     const startTime = performance.now();
     const controller = new AbortController();
     const multiply = maxLatency <= 500 ? 1.5 : (maxLatency <= 1000 ? 1.2 : 1);
@@ -360,10 +360,11 @@ async function runSpeedTest(ip) {
     const startTime = performance.now();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), testDurationMs + 5000);
-
-    const url = `https://${ip}:2096/__down`;
+    let reader = null;
 
     try {
+      const url = `https://${ip}/__down`;
+
       const response = await fetch(url, {
         signal: controller.signal,
         method: 'GET',
@@ -371,30 +372,42 @@ async function runSpeedTest(ip) {
         credentials: 'omit',
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       if (!response.body) {
         throw new Error('No response body available');
       }
 
-      const reader = response.body.getReader();
+      reader = response.body.getReader();
 
-      while (true) {
-        const elapsed = performance.now() - startTime;
-        if (elapsed >= testDurationMs) {
-          await reader.cancel();
-          controller.abort();
-          break;
+      try {
+        while (true) {
+          const elapsed = performance.now() - startTime;
+          if (elapsed >= testDurationMs) {
+            break;
+          }
+
+          const { done, value } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          totalBytes += value.length;
+
+          const currentSpeed = (totalBytes / (elapsed / 1000)) / (1024 * 1024);
+          resultDiv.innerHTML = `<small class="text-info">${currentSpeed.toFixed(2)} MB/s</small>`;
         }
-
-        const { done, value } = await reader.read();
-
-        if (done) {
-          break;
+      } finally {
+        if (reader) {
+          try {
+            await reader.cancel();
+          } catch (e) {
+            // Ignore cancel errors
+          }
         }
-
-        totalBytes += value.length;
-
-        const currentSpeed = (totalBytes / (elapsed / 1000)) / (1024 * 1024);
-        resultDiv.innerHTML = `<small class="text-info">${currentSpeed.toFixed(2)} MB/s</small>`;
       }
 
       clearTimeout(timeoutId);
@@ -410,6 +423,14 @@ async function runSpeedTest(ip) {
       }
 
     } catch (error) {
+      if (reader) {
+        try {
+          await reader.cancel();
+        } catch (e) {
+          // Ignore cancel errors
+        }
+      }
+
       clearTimeout(timeoutId);
 
       const endTime = performance.now();
@@ -423,7 +444,7 @@ async function runSpeedTest(ip) {
       } else if (error.message === 'No response body available') {
         resultDiv.innerHTML = '<small class="text-danger">No data stream</small>';
       } else {
-        resultDiv.innerHTML = '<small class="text-danger">Failed</small>';
+        resultDiv.innerHTML = `<small class="text-danger">Failed: ${error.message}</small>`;
       }
     }
 
