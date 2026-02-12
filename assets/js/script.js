@@ -170,16 +170,26 @@ async function testIPs(ipList) {
       validIPs.push({ ip: ip, latency: latency });
       const sortedArr = validIPs.sort((a, b) => a.latency - b.latency);
 
-      const tableRows = sortedArr.map(obj => `
+      const tableRows = sortedArr.map(obj => {
+        const speedTestId = `speed-test-${obj.ip.replace(/\./g, '-')}`;
+        return `
           <tr>
             <td></td>
             <td>${obj.ip}</td>
             <td>${obj.latency}ms</td>
             <td>
-              <button class="btn btn-secondary btn-sm" onclick="copyToClipboard('${obj.ip}')">
-              <img height="16px" src="assets/img/icon-copy.png" id="invert-icon" class="dark-pic" /></button>
+              <div class="btn-group" role="group">
+                <button class="btn btn-secondary btn-sm" onclick="copyToClipboard('${obj.ip}')" title="Copy IP">
+                  <img height="16px" src="assets/img/icon-copy.png" id="invert-icon" class="dark-pic" />
+                </button>
+                <button class="btn btn-info btn-sm" id="btn-${speedTestId}" onclick="runSpeedTest('${obj.ip}')" title="Run Speed Test">
+                  ⚡
+                </button>
+              </div>
+              <div id="${speedTestId}" class="speed-test-result mt-1"></div>
             </td>
-          </tr>`).join('\n');
+          </tr>`;
+      }).join('\n');
 
       document.getElementById('result').innerHTML = tableRows;
     }
@@ -315,4 +325,92 @@ function downloadAsJSON() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+const activeSpeedTests = new Map();
+
+async function runSpeedTest(ip) {
+  const speedTestId = `speed-test-${ip.replace(/\./g, '-')}`;
+  const resultDiv = document.getElementById(speedTestId);
+  const btnId = `btn-${speedTestId}`;
+  const btn = document.getElementById(btnId);
+  
+  if (activeSpeedTests.has(ip)) {
+    return;
+  }
+  
+  activeSpeedTests.set(ip, true);
+  btn.disabled = true;
+  btn.innerHTML = '⏳';
+  resultDiv.innerHTML = '<small class="text-info">Testing...</small>';
+  
+  try {
+    const testDurationMs = 5000;
+    const chunkSize = 1024 * 100;
+    let totalBytes = 0;
+    const startTime = performance.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), testDurationMs + 2000);
+    
+    const url = `https://${ip}:2096/__down`;
+    
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        method: 'GET',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to connect');
+      }
+      
+      const reader = response.body.getReader();
+      
+      while (true) {
+        const elapsed = performance.now() - startTime;
+        if (elapsed >= testDurationMs) {
+          reader.cancel();
+          break;
+        }
+        
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          break;
+        }
+        
+        totalBytes += value.length;
+        
+        const currentSpeed = (totalBytes / (elapsed / 1000)) / (1024 * 1024);
+        resultDiv.innerHTML = `<small class="text-info">${currentSpeed.toFixed(2)} MB/s</small>`;
+      }
+      
+      clearTimeout(timeoutId);
+      
+      const endTime = performance.now();
+      const durationSeconds = (endTime - startTime) / 1000;
+      const speedMbps = (totalBytes / durationSeconds) / (1024 * 1024);
+      
+      if (totalBytes > 0) {
+        resultDiv.innerHTML = `<small class="text-success"><strong>${speedMbps.toFixed(2)} MB/s</strong></small>`;
+      } else {
+        resultDiv.innerHTML = '<small class="text-warning">No data</small>';
+      }
+      
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        resultDiv.innerHTML = '<small class="text-warning">Timeout</small>';
+      } else {
+        resultDiv.innerHTML = '<small class="text-danger">Failed</small>';
+      }
+    }
+    
+  } catch (error) {
+    resultDiv.innerHTML = '<small class="text-danger">Error</small>';
+  } finally {
+    activeSpeedTests.delete(ip);
+    btn.disabled = false;
+    btn.innerHTML = '⚡';
+  }
 }
