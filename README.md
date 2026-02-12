@@ -26,7 +26,7 @@ This web application is designed to scan and test the latency of IP addresses. I
 ### Speed Testing
 - Per-IP network speed test button to measure download bandwidth for each discovered Cloudflare IP.
 - Real-time speed measurements displayed inline for each IP address.
-- Tests download speed over 5 seconds using the same endpoint as latency tests.
+- Tests download speed over 20 seconds using HTTPS on port 443.
 
 ## Usage
 1. Load the application in a web browser.
