@@ -182,7 +182,7 @@ async function testIPs(ipList) {
                 <button class="btn btn-secondary btn-sm" onclick="copyToClipboard('${obj.ip}')" title="Copy IP">
                   <img height="16px" src="assets/img/icon-copy.png" id="invert-icon" class="dark-pic" />
                 </button>
-                <button class="btn btn-info btn-sm" id="btn-${speedTestId}" onclick="runSpeedTest('${obj.ip}')" title="Run Speed Test">
+                <button class="btn btn-info btn-sm speed-test-btn" id="btn-${speedTestId}" onclick="runSpeedTest('${obj.ip}')" data-translate="speed-test-title" title="Run speed test for this IP">
                   ⚡
                 </button>
               </div>
@@ -192,6 +192,16 @@ async function testIPs(ipList) {
       }).join('\n');
 
       document.getElementById('result').innerHTML = tableRows;
+
+      // Re-apply translations to dynamically added elements
+      const currentLang = localStorage.getItem('selectedLanguage') || 'en';
+      const elements = document.querySelectorAll('#result [data-translate]');
+      elements.forEach(element => {
+        const key = element.getAttribute('data-translate');
+        if (translations[currentLang] && translations[currentLang][key]) {
+          element.title = translations[currentLang][key];
+        }
+      });
     }
 
     if (numberOfWorkingIPs >= maxIP) {

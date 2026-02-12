@@ -192,13 +192,14 @@
             <th>
               <span class="lang-field" data-translate="latency">Latency</span>
             </th>
-            <th width="70">
+            <th width="120">
+              <span class="lang-field" data-translate="tools">Tools</span>
               <div class="btn-group" role="group" dir="ltr" data-bs-theme="dark">
-                <button class="btn btn-primary btn-sm" onclick="downloadAsCSV()">
+                <button class="btn btn-primary btn-sm" onclick="downloadAsCSV()" title="CSV">
                   <img height="20px" src="assets/img/icon-csv.png" class="dark-pic" /></button>
-                <button class="btn btn-primary btn-sm" onclick="downloadAsJSON()">
+                <button class="btn btn-primary btn-sm" onclick="downloadAsJSON()" title="JSON">
                   <img height="20px" src="assets/img/icon-json.png" class="dark-pic" /></button>
-                <button class="btn btn-primary btn-sm" onclick="copyAllToClipboard()">
+                <button class="btn btn-primary btn-sm" onclick="copyAllToClipboard()" title="Copy All">
                   <img height="20px" src="assets/img/icon-copy.png" class="dark-pic" /></button>
               </div>
             </th>
