@@ -182,7 +182,7 @@ async function testIPs(ipList) {
                 <button class="btn btn-secondary btn-sm" onclick="copyToClipboard('${obj.ip}')" title="Copy IP">
                   <img height="16px" src="assets/img/icon-copy.png" id="invert-icon" class="dark-pic" />
                 </button>
-                <button class="btn btn-info btn-sm speed-test-btn" id="btn-${speedTestId}" onclick="runSpeedTest('${obj.ip}')" data-translate="speed-test-title" title="Run speed test for this IP">
+                <button class="btn btn-info btn-sm speed-test-btn" id="btn-$${speedTestId}" onclick="runSpeedTest('$${obj.ip}')" data-translate="speed-test-title" title="Run speed test for this IP">
                   ⚡
                 </button>
               </div>
@@ -299,7 +299,7 @@ function cidrToRandomIPArray(cidr, count) {
   const ranges = splitCIDRTo24Ranges(cidr);
   const ips = [];
   for (const start of ranges) {
-    const prefix = `${(start >>> 24) & 0xff}.${(start >>> 16) & 0xff}.${(start >>> 8) & 0xff}`;
+    const prefix = `$${(start >>> 24) & 0xff}.$${(start >>> 16) & 0xff}.${(start >>> 8) & 0xff}`;
     for (const no of generateRandomNumbers(noOfEachRange24)) {
       ips.push(prefix + '.' + no);
     }
@@ -337,14 +337,42 @@ function downloadAsJSON() {
   document.body.removeChild(link);
 }
 
+// ============================================
+// SPEED TEST MODULE - Real Download Test
+// ============================================
+
 const activeSpeedTests = new Map();
 
+/**
+ * Format bytes to human readable
+ */
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+/**
+ * Get speed badge class based on Mbps
+ */
+function getSpeedBadge(speedMbps) {
+  if (speedMbps >= 50) return { class: 'badge bg-success', emoji: '🚀', label: 'Fast' };
+  if (speedMbps >= 20) return { class: 'badge bg-warning text-dark', emoji: '👍', label: 'Medium' };
+  return { class: 'badge bg-danger', emoji: '🐢', label: 'Slow' };
+}
+
+/**
+ * Run real speed test with download
+ */
 async function runSpeedTest(ip) {
   const speedTestId = `speed-test-${ip.replace(/\./g, '-')}`;
   const resultDiv = document.getElementById(speedTestId);
   const btnId = `btn-${speedTestId}`;
   const btn = document.getElementById(btnId);
 
+  // Prevent duplicate tests
   if (activeSpeedTests.has(ip)) {
     return;
   }
@@ -354,105 +382,111 @@ async function runSpeedTest(ip) {
   btn.innerHTML = '⏳';
   resultDiv.innerHTML = '<small class="text-info">Testing...</small>';
 
+  const testDurationMs = 10000; // 10 seconds test
+  let totalBytes = 0;
+  const startTime = performance.now();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), testDurationMs + 5000);
+  let reader = null;
+
   try {
-    const testDurationMs = 20000;
-    let totalBytes = 0;
-    const startTime = performance.now();
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), testDurationMs + 5000);
-    let reader = null;
+    // Use Cloudflare's __down endpoint for real download test
+    const url = `https://${ip}/__down?bytes=10485760`; // Request up to 10MB
 
-    try {
-      const url = `https://${ip}/__down`;
+    const response = await fetch(url, {
+      signal: controller.signal,
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'omit',
+    });
 
-      const response = await fetch(url, {
-        signal: controller.signal,
-        method: 'GET',
-        cache: 'no-store',
-        credentials: 'omit',
-      });
+    if (!response.ok && response.status !== 0) {
+      throw new Error(`HTTP ${response.status}`);
+    }
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    if (!response.body) {
+      throw new Error('No stream');
+    }
+
+    reader = response.body.getReader();
+    let lastUpdate = 0;
+
+    while (true) {
+      const elapsed = performance.now() - startTime;
+      
+      // Stop after test duration
+      if (elapsed >= testDurationMs) {
+        break;
       }
 
-      if (!response.body) {
-        throw new Error('No response body available');
-      }
+      const { done, value } = await reader.read();
 
-      reader = response.body.getReader();
+      if (done) break;
 
-      try {
-        while (true) {
-          const elapsed = performance.now() - startTime;
-          if (elapsed >= testDurationMs) {
-            break;
-          }
+      totalBytes += value.length;
 
-          const { done, value } = await reader.read();
-
-          if (done) {
-            break;
-          }
-
-          totalBytes += value.length;
-
-          const currentSpeed = (totalBytes / (elapsed / 1000)) / (1024 * 1024);
-          resultDiv.innerHTML = `<small class="text-info">${currentSpeed.toFixed(2)} MB/s</small>`;
-        }
-      } finally {
-        if (reader) {
-          try {
-            await reader.cancel();
-          } catch (e) {
-            // Ignore cancel errors
-          }
-        }
-      }
-
-      clearTimeout(timeoutId);
-
-      const endTime = performance.now();
-      const durationSeconds = (endTime - startTime) / 1000;
-      const speedMbps = (totalBytes / durationSeconds) / (1024 * 1024);
-
-      if (totalBytes > 0) {
-        resultDiv.innerHTML = `<small class="text-success"><strong>${speedMbps.toFixed(2)} MB/s</strong></small>`;
-      } else {
-        resultDiv.innerHTML = '<small class="text-warning">No data</small>';
-      }
-
-    } catch (error) {
-      if (reader) {
-        try {
-          await reader.cancel();
-        } catch (e) {
-          // Ignore cancel errors
-        }
-      }
-
-      clearTimeout(timeoutId);
-
-      const endTime = performance.now();
-      const durationSeconds = (endTime - startTime) / 1000;
-      const speedMbps = (totalBytes / durationSeconds) / (1024 * 1024);
-
-      if (totalBytes > 0) {
-        resultDiv.innerHTML = `<small class="text-success"><strong>${speedMbps.toFixed(2)} MB/s</strong></small>`;
-      } else if (error.name === 'AbortError') {
-        resultDiv.innerHTML = '<small class="text-warning">Timeout</small>';
-      } else if (error.message === 'No response body available') {
-        resultDiv.innerHTML = '<small class="text-danger">No data stream</small>';
-      } else {
-        resultDiv.innerHTML = `<small class="text-danger">Failed: ${error.message}</small>`;
+      // Update UI every 200ms
+      if (elapsed - lastUpdate > 200) {
+        const currentSpeedMbps = (totalBytes * 8) / (elapsed / 1000) / 1000000;
+        resultDiv.innerHTML = `<small class="text-info">${currentSpeedMbps.toFixed(1)} Mbps</small>`;
+        lastUpdate = elapsed;
       }
     }
 
+    clearTimeout(timeoutId);
+
+    // Calculate final speed
+    const endTime = performance.now();
+    const durationSeconds = (endTime - startTime) / 1000;
+    const speedMbps = (totalBytes * 8) / durationSeconds / 1000000;
+    const speedMBps = totalBytes / durationSeconds / 1048576;
+
+    if (totalBytes > 0) {
+      const badge = getSpeedBadge(speedMbps);
+      resultDiv.innerHTML = `
+        <small class="text-success">
+          <strong>${speedMbps.toFixed(1)} Mbps</strong>
+          <span class="$${badge.class}" style="font-size:10px;margin-left:4px;">$${badge.emoji}</span>
+        </small>
+        <br><small class="text-muted" style="font-size:10px;">$${formatBytes(totalBytes)} in $${durationSeconds.toFixed(1)}s</small>
+      `;
+      
+      // Update button with result
+      btn.innerHTML = `${speedMbps.toFixed(0)}`;
+      btn.title = `$${speedMbps.toFixed(1)} Mbps - $${formatBytes(totalBytes)} downloaded`;
+    } else {
+      resultDiv.innerHTML = '<small class="text-warning">No data</small>';
+      btn.innerHTML = '⚡';
+    }
+
   } catch (error) {
-    resultDiv.innerHTML = '<small class="text-danger">Error</small>';
+    clearTimeout(timeoutId);
+
+    // Calculate speed from partial data if available
+    const endTime = performance.now();
+    const durationSeconds = (endTime - startTime) / 1000;
+
+    if (totalBytes > 0 && durationSeconds > 0.5) {
+      const speedMbps = (totalBytes * 8) / durationSeconds / 1000000;
+      resultDiv.innerHTML = `<small class="text-success"><strong>${speedMbps.toFixed(1)} Mbps</strong></small>`;
+      btn.innerHTML = `${speedMbps.toFixed(0)}`;
+    } else if (error.name === 'AbortError') {
+      resultDiv.innerHTML = '<small class="text-warning">Timeout</small>';
+      btn.innerHTML = '⚡';
+    } else {
+      resultDiv.innerHTML = '<small class="text-danger">Failed</small>';
+      btn.innerHTML = '❌';
+    }
+
   } finally {
+    // Cleanup
+    if (reader) {
+      try {
+        await reader.cancel();
+      } catch (e) {}
+    }
+    
     activeSpeedTests.delete(ip);
     btn.disabled = false;
-    btn.innerHTML = '⚡';
   }
 }
